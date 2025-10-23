@@ -6,7 +6,7 @@ on:
       - main
     paths-ignore:
       - '.github/workflows/**'  # Ignore all workflow changes
-      - '**.md'                  # Optionally ignore markdown files
+      # - '**.md'                  # Optionally ignore markdown files
 
 # Required for OIDC authentication
 permissions:
