@@ -1,0 +1,76 @@
+name: Upload to S3 with OIDC
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/workflows/**'  # Ignore all workflow changes
+      # - '**.md'                  # Optionally ignore markdown files
+
+# Required for OIDC authentication
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  upload-to-s3:
+    runs-on: ubuntu-latest
+    environment: production  # Change to your environment name
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::145006476843:role/GithubActionsS3Role
+          aws-region: us-east-1  # Change to your region
+          audience: sts.amazonaws.com
+
+      - name: Create file with secrets, variables, and metadata
+        env:
+          # Environment secrets (configure these in GitHub)
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          # Environment variables (configure these in GitHub)
+          APP_ENV: ${{ vars.APP_ENV }}
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          # Create output file with all information
+          cat > deployment-info.txt << EOF
+          ========================================
+          Deployment Information
+          ========================================
+          
+          Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          GitHub Metadata:
+          - Repository: ${{ github.repository }}
+          - Ref: ${{ github.ref }}
+          - SHA: ${{ github.sha }}
+          - Workflow: ${{ github.workflow }}
+          
+          Environment Secrets:
+          - SECRET_KEY: ${SECRET_KEY}
+          - API_TOKEN: ${API_TOKEN}
+          
+          Environment Variables:
+          - APP_ENV: ${APP_ENV}
+          - API_URL: ${API_URL}
+          
+          ========================================
+          EOF
+          
+          echo "File created successfully"
+          cat deployment-info.txt
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp deployment-info.txt s3://cicd-consigna-2/deployments/deployment-${{ github.sha }}.txt
+          echo "File uploaded successfully to S3"
+
+      - name: Verify upload
+        run: |
+          aws s3 ls s3://cicd-consigna-2/deployments/ | grep ${{ github.sha }}
